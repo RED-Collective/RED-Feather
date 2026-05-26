@@ -34,64 +34,82 @@ Also, we must provide two clear methods: a simple drag‑and‑drop for inexperi
 
 Below is the updated section. Replace the existing ## Installation & Setup in your README.md with this:
 
-🛠️ Installation & Setup
-📦 Method 1 – Simple (for most users)
-Download the plugin
-Go to the Releases page and grab the latest red-signer.zip.
+markdown
+## 🛠️ Installation & Setup
 
-Download the cryptographic engine
-From the same page, download the binary that matches your operating system:
-
-OS	File name
-Windows	signer-windows-x64.exe
-macOS (Intel)	signer-macos-x64
-macOS (Apple Silicon)	signer-macos-arm64
-Linux	signer-linux-x64
-Extract & place
-
-Unzip red-signer.zip – you’ll get a folder named red-signer.
-
-Move the downloaded binary (e.g., signer-linux-x64) inside that red-signer folder.
-
-Now move the whole red-signer folder into your Obsidian vault’s plugin directory:
-YourVault/.obsidian/plugins/
-
-
-Make it executable (macOS/Linux)
-open a terminal window and run:
-
-```bash
-chmod +x /path/to/your/vault/.obsidian/plugins/red-signer/signer-*
-```
-
-- Enable the plugin
-- Restart Obsidian (or reload community plugins), then go to Settings → Community plugins and turn on Red Signer.
-
-- That’s it. You’re ready to sign notes.
+Choose the method that fits your workflow.
 
 ---
 
-🧩 Method 2 – Lightweight (for advanced users)
-If you prefer to fetch only the essential files and avoid the zip:
+### 1. Script (recommended)
 
-Create the plugin folder
+- Before you begin installation make sure you have `npm` installed.
 
-bash
-mkdir -p YourVault/.obsidian/plugins/red-signer
-Download the two required files
+#### macOS / Linux
 
-manifest.json
+Open a terminal and run:
 
-main.js
+```bash
+bash <(curl -s https://raw.githubusercontent.com/StandardCodebase/obsidian-red-signer/main/install-red-signer.sh)
+```
 
-Place both inside the red-signer folder.
 
-Download the correct signer binary from the Releases page and place it inside the same folder (no renaming required).
 
-Make it executable (macOS/Linux only):
-chmod +x YourVault/.obsidian/plugins/red-signer/signer-*
+#### Windows
 
-Reload Obsidian and enable the plugin.
+Open PowerShell as Administrator and run:
+
+
+```powershell
+iex (iwr -UseBasicParsing https://raw.githubusercontent.com/StandardCodebase/obsidian-red-signer/main/install-red-signer.ps1).Content
+```
+
+
+### 2.Manual Installation
+
+1. Go to the Releases page.
+
+2. Download the latest red-signer.zip and the binary for your operating system:
+
+| Your OS              | Binary Name            |
+| -------------------- | ---------------------- |
+| Linux                | signer-linux-x64       |
+| macOS(Intel)         | signer-windows-x64.exe |
+| macOS(Apple Silicon) | signer-macos-arm64     |
+| Windows              | signer-windows-x64     |
+
+3. Extract red-signer.zip → you get a folder named red-signer.
+
+4. Move the downloaded binary (e.g., signer-linux-x64) inside that red-signer folder.
+
+5 Move the whole red-signer folder into your Obsidian vault’s plugins directory:
+`YourVault/.obsidian/plugins/`
+
+#### macOS / Linux only – make the binary executable:
+
+
+```bash
+chmod +x /path/to/YourVault/.obsidian/plugins/red-signer/signer-*
+```
+
+
+6. Restart Obsidian (or reload community plugins) and enable Red Signer in Settings → Community plugins.
+
+
+✅ No renaming needed – the plugin now uses the exact binary names listed above.
+
+
+### Next Steps
+
+- Open any Markdown note in your vault.
+
+- Click the signature icon (✍️) in the left ribbon, or use the command palette.
+
+- Copy your public key and add it to your Project R.E.D. node’s TrustedMaintainers.
+
+- Sign your first note – the status bar will show ✓ Signed.
+
+- That’s it. You’re ready to contribute to the network.
 
 ---
 
@@ -103,7 +121,7 @@ Reload Obsidian and enable the plugin.
 4. Click **Sign this note**.  
 
 **What happens under the hood:**
-* If you are a new maintainer, the engine generates your private key at `~/.red-network/maintainer.key` (with strict `0600` permissions).  
+* If you are a new contributor/maintainer, the engine generates your private key at `~/.red-network/maintainer.key` (with strict `0600` permissions).  
 * It creates or locates the `manifest.json` in your vault root.  
 * The guide is cryptographically hashed, signed, and instantly injected into the network ledger.
 
@@ -113,12 +131,12 @@ Once signed, the bottom status bar will glow **`Signed`**. If you modify a singl
 
 ## 🛡️ Security Architecture
 
-* **The Private Key:** Your `maintainer.key` is stored at `~/.red-network/maintainer.key` (owner read/write only). **Never upload this to GitHub or share it.**
-* **The Verification:** The Obsidian plugin only signs. Verification happens strictly on the Project R.E.D. Go server side, ensuring no compromised files are ever rendered to the end-user.
+* **The Private Key:** Your `maintainer.key` is stored at `~/.red-network/maintainer.key`  (owner read/write only). **Never upload this or share it.**
+* **The Verification:** The Obsidian plugin only signs the files. Verification happens strictly on the Project R.E.D. Go server side, ensuring no compromised files are ever rendered to the end-user.
 
 ---
 
-## 💻 Building from Source (For Core Contributors)
+## 💻 Building from Source (For Contributors)
 
 If you want to audit or modify the plugin's TypeScript architecture:
 
@@ -126,4 +144,6 @@ If you want to audit or modify the plugin's TypeScript architecture:
 git clone [https://github.com/StandardCodebase/obsidian-red-signer](https://github.com/StandardCodebase/obsidian-red-signer)
 cd obsidian-red-signer
 npm install
+npm install typescript
 npm run build   # or `npx tsc`
+```

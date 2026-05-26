@@ -43,6 +43,10 @@ jobs:
           # Windows (amd64)
           GOOS=windows GOARCH=amd64 go build -o ../signer-windows-x64.exe main.go
 
+      - name: Remove installer scripts (not part of release)
+        run: |
+          rm -f install-red-signer.sh install-red-signer.ps1
+
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
