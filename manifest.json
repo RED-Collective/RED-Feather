@@ -3,8 +3,8 @@
   "name": "Red Signer",
   "version": "1.0.1",
   "minAppVersion": "0.15.0",
-  "description": "Sign markdown notes with ed25519 and maintain a verifiable manifest",
-  "author": "Standard Codebasere",
+  "description": "Sign markdown notes with ed25519 and maintain a verifiable manifest.",
+  "author": "Standard Codebase",
   "authorUrl": "https://github.com/StandardCodebase",
   "isDesktopOnly": true
 }
