@@ -1,11 +1,12 @@
 import { App, Modal, Plugin, Notice, TFile } from "obsidian";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import { promisify } from "util";
 import { createHash } from "crypto";
 
-const execPromise = promisify(exec);
+// FIX: Use execFile instead of exec to prevent command injection
+const execFilePromise = promisify(execFile);
 
 // --- Modal for signing with public key display ---
 class SignModal extends Modal {
@@ -97,11 +98,10 @@ export default class RedSignerPlugin extends Plugin {
       return;
     }
 
-    // DYNAMIC FOLDER RESOLUTION (with a fallback to satisfy TypeScript)
+    // DYNAMIC FOLDER RESOLUTION
     const manifestDir = this.manifest.dir || "";
     this.pluginDir = path.join(this.vaultRoot, manifestDir);
 
-    // Declare this ONCE
     let binaryName: string;
     switch (process.platform) {
       case "win32":
@@ -162,7 +162,6 @@ export default class RedSignerPlugin extends Plugin {
       async () => {
         const file = this.app.workspace.getActiveFile();
         if (file && file.extension === "md") {
-          // Note: Ensure SignModal is imported or defined above!
           new SignModal(this.app, this, file).open();
         } else {
           new Notice("Please open a markdown note first.");
@@ -207,6 +206,7 @@ export default class RedSignerPlugin extends Plugin {
       callback: () => this.copyPublicKey(),
     });
   }
+
   private async updateStatusForActiveFile() {
     if (!this.statusBarItem) return;
     const file = this.app.workspace.getActiveFile();
@@ -222,7 +222,11 @@ export default class RedSignerPlugin extends Plugin {
     try {
       const data = await fs.promises.readFile(manifestPath, "utf8");
       manifest = JSON.parse(data);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.code !== "ENOENT") {
+        new Notice("⚠️ Manifest Corrupted or Unreadable");
+        console.error("Manifest read error:", err);
+      }
       this.showUnsigned();
       return;
     }
@@ -269,9 +273,13 @@ export default class RedSignerPlugin extends Plugin {
 
     new Notice(`🔏 Signing ${file.name}...`);
 
-    const signCmd = `"${this.binaryPath}" --manifest="${manifestPath}" "${fullPath}"`;
     try {
-      const { stdout, stderr } = await execPromise(signCmd);
+      // FIX: Use execFilePromise with strict array arguments
+      const { stdout, stderr } = await execFilePromise(this.binaryPath, [
+        `--manifest=${manifestPath}`,
+        fullPath,
+      ]);
+
       if (stderr) console.warn(stderr);
       console.log(stdout);
       new Notice(`✅ Signed: ${file.name}`);
@@ -286,7 +294,10 @@ export default class RedSignerPlugin extends Plugin {
         new Notice(`📄 Creating manifest at ${manifestPath}...`);
         await this.initManifest(manifestPath);
         try {
-          const { stdout, stderr } = await execPromise(signCmd);
+          const { stdout, stderr } = await execFilePromise(this.binaryPath, [
+            `--manifest=${manifestPath}`,
+            fullPath,
+          ]);
           if (stderr) console.warn(stderr);
           console.log(stdout);
           new Notice(`✅ Signed after manifest init: ${file.name}`);
@@ -306,8 +317,11 @@ export default class RedSignerPlugin extends Plugin {
   private async initManifest(manifestPath: string) {
     try {
       const dummyPath = path.join(this.vaultRoot, "dummy.md");
-      const cmd = `"${this.binaryPath}" --init --manifest="${manifestPath}" "${dummyPath}"`;
-      const { stderr } = await execPromise(cmd);
+      const { stderr } = await execFilePromise(this.binaryPath, [
+        "--init",
+        `--manifest=${manifestPath}`,
+        dummyPath,
+      ]);
       if (stderr) console.warn(stderr);
       new Notice(`✅ Manifest created at ${manifestPath}`);
     } catch (err: any) {
@@ -333,9 +347,9 @@ export default class RedSignerPlugin extends Plugin {
   async getPublicKey(): Promise<string | null> {
     if (!fs.existsSync(this.binaryPath)) return null;
     try {
-      const { stdout } = await execPromise(
-        `"${this.binaryPath}" --print-pubkey`,
-      );
+      const { stdout } = await execFilePromise(this.binaryPath, [
+        "--print-pubkey",
+      ]);
       return stdout.trim();
     } catch (err) {
       return null;

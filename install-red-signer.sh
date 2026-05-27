@@ -2,7 +2,7 @@
 # Red Signer Plugin Installer (lightweight method)
 
 REPO="StandardCodebase/obsidian-red-signer"
-PLUGIN_NAME="red-signer"
+PLUGIN_NAME="obsidian-red-signer"
 
 echo "🔍 Locating your Obsidian vault..."
 read -p "Enter the full path to your Obsidian vault (e.g., /home/user/Documents/Vault): " VAULT_PATH

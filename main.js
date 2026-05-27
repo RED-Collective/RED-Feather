@@ -39,7 +39,8 @@ const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const util_1 = require("util");
 const crypto_1 = require("crypto");
-const execPromise = (0, util_1.promisify)(child_process_1.exec);
+// FIX: Use execFile instead of exec to prevent command injection
+const execFilePromise = (0, util_1.promisify)(child_process_1.execFile);
 // --- Modal for signing with public key display ---
 class SignModal extends obsidian_1.Modal {
     constructor(app, plugin, file) {
@@ -120,12 +121,36 @@ class RedSignerPlugin extends obsidian_1.Plugin {
             new obsidian_1.Notice("❌ This plugin only works on desktop Obsidian.");
             return;
         }
-        // DYNAMIC FOLDER RESOLUTION (with a fallback to satisfy TypeScript)
+        // DYNAMIC FOLDER RESOLUTION
         const manifestDir = this.manifest.dir || "";
         this.pluginDir = path.join(this.vaultRoot, manifestDir);
-        // Declare this ONCE
-        const binaryName = process.platform === "win32" ? "signer.exe" : "signer";
+        let binaryName;
+        switch (process.platform) {
+            case "win32":
+                binaryName = "signer-windows-x64.exe";
+                break;
+            case "darwin":
+                binaryName = "signer-macos-x64";
+                break;
+            case "linux":
+                binaryName = "signer-linux-x64";
+                break;
+            default:
+                binaryName = "signer";
+        }
         this.binaryPath = path.join(this.pluginDir, binaryName);
+        if (process.platform !== "win32" && fs.existsSync(this.binaryPath)) {
+            try {
+                const stats = fs.statSync(this.binaryPath);
+                if (!(stats.mode & 0o111)) {
+                    fs.chmodSync(this.binaryPath, 0o755);
+                    console.log(`Set executable permission on ${this.binaryPath}`);
+                }
+            }
+            catch (err) {
+                console.warn(`Could not set executable permission: ${err}`);
+            }
+        }
         if (!fs.existsSync(this.binaryPath)) {
             new obsidian_1.Notice(`❌ Signer binary missing at ${this.binaryPath}`, 0);
             console.error(`Missing: ${this.binaryPath}`);
@@ -148,7 +173,6 @@ class RedSignerPlugin extends obsidian_1.Plugin {
         this.addRibbonIcon("signature", "Red Signer: Sign current note", async () => {
             const file = this.app.workspace.getActiveFile();
             if (file && file.extension === "md") {
-                // Note: Ensure SignModal is imported or defined above!
                 new SignModal(this.app, this, file).open();
             }
             else {
@@ -205,6 +229,10 @@ class RedSignerPlugin extends obsidian_1.Plugin {
             manifest = JSON.parse(data);
         }
         catch (err) {
+            if (err.code !== "ENOENT") {
+                new obsidian_1.Notice("⚠️ Manifest Corrupted or Unreadable");
+                console.error("Manifest read error:", err);
+            }
             this.showUnsigned();
             return;
         }
@@ -244,9 +272,12 @@ class RedSignerPlugin extends obsidian_1.Plugin {
         const manifestPath = path.join(this.vaultRoot, "manifest.json");
         console.log(`Using manifest: ${manifestPath}`);
         new obsidian_1.Notice(`🔏 Signing ${file.name}...`);
-        const signCmd = `"${this.binaryPath}" --manifest="${manifestPath}" "${fullPath}"`;
         try {
-            const { stdout, stderr } = await execPromise(signCmd);
+            // FIX: Use execFilePromise with strict array arguments
+            const { stdout, stderr } = await execFilePromise(this.binaryPath, [
+                `--manifest=${manifestPath}`,
+                fullPath,
+            ]);
             if (stderr)
                 console.warn(stderr);
             console.log(stdout);
@@ -261,7 +292,10 @@ class RedSignerPlugin extends obsidian_1.Plugin {
                 new obsidian_1.Notice(`📄 Creating manifest at ${manifestPath}...`);
                 await this.initManifest(manifestPath);
                 try {
-                    const { stdout, stderr } = await execPromise(signCmd);
+                    const { stdout, stderr } = await execFilePromise(this.binaryPath, [
+                        `--manifest=${manifestPath}`,
+                        fullPath,
+                    ]);
                     if (stderr)
                         console.warn(stderr);
                     console.log(stdout);
@@ -283,8 +317,11 @@ class RedSignerPlugin extends obsidian_1.Plugin {
     async initManifest(manifestPath) {
         try {
             const dummyPath = path.join(this.vaultRoot, "dummy.md");
-            const cmd = `"${this.binaryPath}" --init --manifest="${manifestPath}" "${dummyPath}"`;
-            const { stderr } = await execPromise(cmd);
+            const { stderr } = await execFilePromise(this.binaryPath, [
+                "--init",
+                `--manifest=${manifestPath}`,
+                dummyPath,
+            ]);
             if (stderr)
                 console.warn(stderr);
             new obsidian_1.Notice(`✅ Manifest created at ${manifestPath}`);
@@ -308,7 +345,9 @@ class RedSignerPlugin extends obsidian_1.Plugin {
         if (!fs.existsSync(this.binaryPath))
             return null;
         try {
-            const { stdout } = await execPromise(`"${this.binaryPath}" --print-pubkey`);
+            const { stdout } = await execFilePromise(this.binaryPath, [
+                "--print-pubkey",
+            ]);
             return stdout.trim();
         }
         catch (err) {

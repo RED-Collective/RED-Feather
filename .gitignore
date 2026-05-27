@@ -1,8 +1,9 @@
-signer
-signer.exe
+
 signer*
 
 .pubkey_shown
+
+.keys/
 
 node_modules/
 package-lock.json
