@@ -1,7 +1,7 @@
 {
   "id": "red-signer",
   "name": "Red Signer",
-  "version": "1.0.1",
+  "version": "1.2.2",
   "minAppVersion": "0.15.0",
   "description": "Sign markdown notes with ed25519 and maintain a verifiable manifest.",
   "author": "Standard Codebase",
