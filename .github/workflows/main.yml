@@ -26,26 +26,41 @@ jobs:
           go-version: "1.22"
 
       - name: Install TypeScript dependencies
-        run: npm install
+        run: |
+          cd src
+          npm install
+          cd ..
 
       - name: Compile TypeScript plugin
-        run: npx tsc
+        run: |
+          cd src
+          npx tsc
+          # Move the compiled main.js to the root (overwrite if exists)
+          mv main.js ../main.js
+          cd ..
 
       - name: Build Go binaries
         run: |
           cd cmd/red-signer
           # Linux (amd64)
-          GOOS=linux GOARCH=amd64 go build -o ../signer-linux-x64 main.go
+          GOOS=linux GOARCH=amd64 go build -o ../../signer-linux-x64 main.go
           # macOS (Intel)
-          GOOS=darwin GOARCH=amd64 go build -o ../signer-macos-x64 main.go
+          GOOS=darwin GOARCH=amd64 go build -o ../../signer-macos-x64 main.go
           # macOS (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build -o ../signer-macos-arm64 main.go
+          GOOS=darwin GOARCH=arm64 go build -o ../../signer-macos-arm64 main.go
           # Windows (amd64)
-          GOOS=windows GOARCH=amd64 go build -o ../signer-windows-x64.exe main.go
+          GOOS=windows GOARCH=amd64 go build -o ../../signer-windows-x64.exe main.go
+          cd ../..
 
-      - name: Remove installer scripts (not part of release)
+      - name: Remove unnecessary files from release context
         run: |
-          rm -f install-red-signer.sh install-red-signer.ps1
+          # Keep only the essential files in the root for the release assets
+          # Installer scripts are in scripts/ – we exclude them.
+          # Also remove source folders, node_modules, etc.
+          rm -rf src cmd scripts .gitlab node_modules .pubkey_shown .cache
+          rm -f *.sh *.ps1 *.md~ *.js.map *.tsbuildinfo
+          # Keep README and CHANGELOG if you want them in the release (optional)
+          # rm -f README.md CHANGELOG.md  # uncomment if you don't want them
 
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
@@ -57,4 +72,7 @@ jobs:
             signer-macos-x64
             signer-macos-arm64
             signer-windows-x64.exe
+            README.md
+            CHANGELOG.md
+            LICENSE.md
           generate_release_notes: true
