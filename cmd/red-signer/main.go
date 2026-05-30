@@ -203,7 +203,7 @@ func atomicUpdateManifest(manifestPath, key, hashHex, pubKeyHex, sigHex string) 
 	data, err := os.ReadFile(manifestPath)
 	if err == nil {
 		if err := json.Unmarshal(data, &manifest); err != nil {
-			return fmt.Errorf("authors.json corrupted: %v", err)
+			return fmt.Errorf("manifest.json corrupted: %v", err)
 		}
 	} else if !os.IsNotExist(err) {
 		return err
