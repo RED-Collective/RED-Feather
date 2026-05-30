@@ -33,7 +33,7 @@ jobs:
 
       - name: Build Go binaries
         run: |
-          cd go
+          cd cmd/red-signer
           # Linux (amd64)
           GOOS=linux GOARCH=amd64 go build -o ../signer-linux-x64 main.go
           # macOS (Intel)
