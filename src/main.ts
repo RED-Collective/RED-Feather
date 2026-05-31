@@ -3,25 +3,10 @@ import { execFile } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import { promisify } from "util";
-import { createHash } from "crypto";
 
 const execFilePromise = promisify(execFile);
 
-// --- Manifest structure ---
-interface Manifest {
-  branch?: string;
-  sub_branch?: string;
-  branch_author?: string;
-  files: Record<string, ManifestEntry>;
-}
-
-interface ManifestEntry {
-  file_hash: string;
-  public_key: string;
-  signature: string;
-}
-
-// --- Predefined sub‑branch options per branch ---
+// --- Predefined branch options (real sciences) ---
 const subBranchOptions: Record<string, string[]> = {
   "Formal Sciences": ["Logic", "Mathematics", "Computer Science", "Statistics", "Information Theory"],
   "Physical Sciences": ["Physics", "Chemistry", "Astronomy", "Earth Sciences", "Materials Science"],
@@ -31,12 +16,13 @@ const subBranchOptions: Record<string, string[]> = {
   "Philosophy & Ethics": ["Epistemology", "Metaphysics", "Ethics", "Aesthetics", "Logic"]
 };
 
-// --- Modal with branch and sub‑branch selection ---
+// --- Modal for branch selection and signing ---
 class SignModal extends Modal {
   private plugin: RedSignerPlugin;
   private file: TFile | null;
   private publicKey: string | null = null;
   private isAuthor: boolean = false;
+  private hasBranch: boolean = false;
 
   constructor(app: App, plugin: RedSignerPlugin, file: TFile | null) {
     super(app);
@@ -47,6 +33,7 @@ class SignModal extends Modal {
   async onOpen() {
     this.publicKey = await this.plugin.getPublicKey();
     this.isAuthor = await this.plugin.isBranchAuthor();
+    this.hasBranch = !!(await this.plugin.getBranch()).branch;
 
     const { contentEl } = this;
     contentEl.empty();
@@ -73,47 +60,94 @@ class SignModal extends Modal {
       keyContainer.createEl("p", { text: "No public key found. Sign a note first to generate one." });
     }
 
-    // --- Branch selection (only if author) ---
+    // Branch selection
     contentEl.createEl("h4", { text: "Knowledge Branch" });
     const branchSelect = contentEl.createEl("select");
     const branches = Object.keys(subBranchOptions);
     const currentBranch = this.plugin.currentBranch;
+
+    // Placeholder option
+    const placeholderOption = branchSelect.createEl("option", { text: "-- Select a branch --", value: "" });
+    placeholderOption.disabled = true;
+    if (!this.hasBranch) placeholderOption.selected = true;
+
     for (const b of branches) {
-      const option = branchSelect.createEl("option", { text: b });
+      const option = branchSelect.createEl("option", { text: b, value: b });
       if (currentBranch === b) option.selected = true;
     }
-    if (!this.isAuthor) branchSelect.disabled = true;
 
-    // --- Sub‑branch dropdown (dynamic based on branch) ---
+    // Sub‑branch dropdown
     contentEl.createEl("h4", { text: "Sub‑Branch" });
     const subBranchSelect = contentEl.createEl("select");
     const updateSubBranchOptions = () => {
       const selectedBranch = branchSelect.value;
-      const options = subBranchOptions[selectedBranch] || ["General"];
       subBranchSelect.empty();
+      // Placeholder for sub-branch
+      const subPlaceholder = subBranchSelect.createEl("option", { text: "-- Select a sub-branch --", value: "" });
+      subPlaceholder.disabled = true;
+      if (!selectedBranch) {
+        subPlaceholder.selected = true;
+        return;
+      }
+      const options = subBranchOptions[selectedBranch] || ["General"];
       for (const opt of options) {
-        const option = subBranchSelect.createEl("option", { text: opt });
-        if (this.plugin.currentSubBranch === opt) option.selected = true;
+        const option = subBranchSelect.createEl("option", { text: opt, value: opt });
+        if (this.plugin.currentSubBranch === opt && this.hasBranch) option.selected = true;
+      }
+      // If no branch exists, force user to pick explicitly: leave placeholder selected
+      if (!this.hasBranch && subBranchSelect.options.length > 1) {
+        (subBranchSelect.options[0] as HTMLOptionElement).selected = true;
       }
     };
-    updateSubBranchOptions();
-    branchSelect.addEventListener("change", updateSubBranchOptions);
-    if (!this.isAuthor) subBranchSelect.disabled = true;
 
-    if (!this.isAuthor && this.plugin.currentBranch) {
+    // Function to validate and enable/disable sign button
+    const validateAndEnable = () => {
+      const branchValid = branchSelect.value && branchSelect.value !== "";
+      const subValid = subBranchSelect.value && subBranchSelect.value !== "";
+      signBtn.disabled = !(branchValid && subValid);
+    };
+
+    branchSelect.addEventListener("change", () => {
+      updateSubBranchOptions();
+      validateAndEnable();
+    });
+    subBranchSelect.addEventListener("change", validateAndEnable);
+
+    updateSubBranchOptions();
+
+    // Disable dropdowns if branch already exists and user is not author
+    if (this.hasBranch && !this.isAuthor) {
+      branchSelect.disabled = true;
+      subBranchSelect.disabled = true;
+    } else if (!this.hasBranch) {
+      branchSelect.disabled = false;
+      subBranchSelect.disabled = false;
+    } else {
+      branchSelect.disabled = false;
+      subBranchSelect.disabled = false;
+    }
+
+    if (!this.isAuthor && this.hasBranch) {
       contentEl.createEl("p", { text: "🔒 Classification locked by original author.", cls: "red-signer-lock" });
+    } else if (!this.hasBranch) {
+      contentEl.createEl("p", { text: "📚 No branch set yet. You must select a branch and sub-branch before signing.", cls: "red-signer-info" });
     }
 
     const signBtn = contentEl.createEl("button", { text: "✍️ Sign this note", cls: "mod-cta" });
     signBtn.style.marginTop = "1em";
+    signBtn.disabled = true; // initially disabled
     signBtn.onclick = async () => {
       signBtn.disabled = true;
       signBtn.setText("Signing...");
 
-      if (this.isAuthor) {
-        const newBranch = branchSelect.value;
-        const newSubBranch = subBranchSelect.value;
-        await this.plugin.updateManifestBranch(newBranch, newSubBranch);
+      const newBranch = branchSelect.value;
+      const newSubBranch = subBranchSelect.value;
+
+      // If no branch exists, initialise the database with chosen branch
+      if (!this.hasBranch) {
+        await this.plugin.initDatabase(newBranch, newSubBranch);
+      } else if (this.isAuthor && (newBranch !== currentBranch || newSubBranch !== this.plugin.currentSubBranch)) {
+        await this.plugin.updateBranch(newBranch, newSubBranch);
       }
 
       await this.plugin.signFile(this.file!);
@@ -131,24 +165,35 @@ class SignModal extends Modal {
   }
 }
 
-// --- Main Plugin Class ---
+// --- Main Plugin Class (Database only) ---
 export default class RedSignerPlugin extends Plugin {
   private binaryPath: string = "";
   private pluginDir: string = "";
   private vaultRoot: string = "";
+  private dbPath: string = "";
   private statusBarItem: HTMLElement | null = null;
   public currentBranch: string = "";
   public currentSubBranch: string = "";
+  private statusCheckTimeout: NodeJS.Timeout | null = null;
 
   async onload() {
-    this.vaultRoot = (this.app.vault.adapter as any).getBasePath();
+    // 1. Determine absolute vault root
+    const adapter = this.app.vault.adapter as any;
+    this.vaultRoot = adapter.getBasePath ? adapter.getBasePath() : adapter.basePath || "";
+
     if (!this.vaultRoot) {
-      new Notice("❌ This plugin only works on desktop Obsidian.");
+      new Notice("❌ Red Signer only works on desktop Obsidian with a local filesystem.");
       return;
     }
+    console.log("[Red Signer] Vault root detected:", this.vaultRoot);
 
-    const manifestDir = this.manifest.dir || "";
+    // 2. Resolve absolute plugin directory (ensuring absolute path for fs operations)
+    const manifestDir = (this.manifest as any).dir;
     this.pluginDir = path.join(this.vaultRoot, manifestDir);
+    console.log("[Red Signer] Plugin directory resolved to:", this.pluginDir);
+
+    // 3. Set database path (Vault Root -> .red-signer folder -> signer.db)
+    this.dbPath = path.join(this.vaultRoot, ".red-signer", "signer.db");
 
     let binaryName: string;
     switch (process.platform) {
@@ -159,7 +204,7 @@ export default class RedSignerPlugin extends Plugin {
         binaryName = process.arch === "arm64" ? "signer-macos-arm64" : "signer-macos-x64";
         break;
       case "linux":
-        binaryName = "signer-linux-x64";
+        binaryName = (process.arch as string) === "arm64" || (process.arch as string) === "aarch64" ? "signer-linux-arm64" : "signer-linux-x64";
         break;
       default:
         binaryName = "signer";
@@ -183,15 +228,18 @@ export default class RedSignerPlugin extends Plugin {
       console.error(`Missing: ${this.binaryPath}`);
     }
 
-    // Ensure README in the key directory
+    // Ensure README in key directory
     this.ensureReadme().catch(console.error);
 
-    await this.loadBranchFromManifest();
+    // Load branch info from database
+    await this.loadBranchFromDb();
 
+    // Status bar
     this.statusBarItem = this.addStatusBarItem();
     this.statusBarItem.addClass("red-signer-status");
     this.updateStatusForActiveFile();
 
+    // Event listeners
     this.registerEvent(this.app.vault.on("modify", (file) => {
       const activeFile = this.app.workspace.getActiveFile();
       if (activeFile && file === activeFile) this.updateStatusForActiveFile();
@@ -200,6 +248,7 @@ export default class RedSignerPlugin extends Plugin {
       this.updateStatusForActiveFile();
     }));
 
+    // Ribbon icon
     this.addRibbonIcon("signature", "Red Signer: Sign current note", async () => {
       const file = this.app.workspace.getActiveFile();
       if (file && file.extension === "md") {
@@ -209,6 +258,7 @@ export default class RedSignerPlugin extends Plugin {
       }
     });
 
+    // Editor context menu
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, _editor, view) => {
       const file = view.file;
       if (file && file.extension === "md") {
@@ -220,6 +270,7 @@ export default class RedSignerPlugin extends Plugin {
       }
     }));
 
+    // Commands
     this.addCommand({
       id: "sign-current-note",
       name: "Sign current note",
@@ -266,73 +317,103 @@ For more information, see https://github.com/RED-Collective/red-engine
     }
   }
 
-  async loadBranchFromManifest() {
-    const manifestPath = path.join(this.vaultRoot, "manifest.json");
+  async loadBranchFromDb() {
+    if (!fs.existsSync(this.binaryPath)) return;
     try {
-      const data = await fs.promises.readFile(manifestPath, "utf8");
-      const manifest: Manifest = JSON.parse(data);
-      this.currentBranch = manifest.branch || "";
-      this.currentSubBranch = manifest.sub_branch || "";
-    } catch (err: any) {
-      if (err.code !== "ENOENT") {
-        console.error("Failed to read manifest for branch info:", err);
-      }
+      const { stdout } = await execFilePromise(this.binaryPath, [
+        "--db", this.dbPath,
+        "--get-branch"
+      ]);
+      const data = JSON.parse(stdout);
+      this.currentBranch = data.branch || "";
+      this.currentSubBranch = data.sub_branch || "";
+    } catch (err) {
+      // Database might not exist yet; ignore
       this.currentBranch = "";
       this.currentSubBranch = "";
     }
   }
 
-  async isBranchAuthor(): Promise<boolean> {
-    const manifestPath = path.join(this.vaultRoot, "manifest.json");
+  async getBranch(): Promise<{ branch: string; sub_branch: string; branch_author: string }> {
+    if (!fs.existsSync(this.binaryPath)) return { branch: "", sub_branch: "", branch_author: "" };
     try {
-      const data = await fs.promises.readFile(manifestPath, "utf8");
-      const manifest: Manifest = JSON.parse(data);
-      const authorPubKey = manifest.branch_author;
-      if (!authorPubKey) return true;
-      const currentPubKey = await this.getPublicKey();
-      return currentPubKey === authorPubKey;
+      const { stdout } = await execFilePromise(this.binaryPath, [
+        "--db", this.dbPath,
+        "--get-branch"
+      ]);
+      return JSON.parse(stdout);
+    } catch (err) {
+      return { branch: "", sub_branch: "", branch_author: "" };
+    }
+  }
+
+  async isBranchAuthor(): Promise<boolean> {
+    const branchInfo = await this.getBranch();
+    const authorPubKey = branchInfo.branch_author;
+    if (!authorPubKey) return true;
+    const currentPubKey = await this.getPublicKey();
+    return currentPubKey === authorPubKey;
+  }
+
+  async initDatabase(branch: string, subBranch: string): Promise<boolean> {
+    try {
+      await execFilePromise(this.binaryPath, [
+        "--db", this.dbPath,
+        "--init",
+        "--branch", branch,
+        "--sub-branch", subBranch
+      ]);
+      this.currentBranch = branch;
+      this.currentSubBranch = subBranch;
+      new Notice(`✅ Database initialised with branch: ${branch}/${subBranch}`);
+      return true;
     } catch (err: any) {
-      if (err.code === "ENOENT") return true;
-      console.error("Error checking branch author:", err);
+      new Notice(`❌ Failed to initialise database: ${err.message}`);
       return false;
     }
   }
 
-  async updateManifestBranch(branch: string, subBranch: string): Promise<boolean> {
+  async updateBranch(branch: string, subBranch: string): Promise<boolean> {
     const isAuthor = await this.isBranchAuthor();
     if (!isAuthor) {
       new Notice("❌ Only the original author can change the branch classification.");
       return false;
     }
 
-    const manifestPath = path.join(this.vaultRoot, "manifest.json");
-    let manifest: Manifest = { files: {} };
-    try {
-      const data = await fs.promises.readFile(manifestPath, "utf8");
-      manifest = JSON.parse(data);
-    } catch (err: any) {
-      if (err.code !== "ENOENT") {
-        new Notice(`Failed to read manifest: ${err.message}`);
-        return false;
-      }
-    }
-
-    const oldBranch = manifest.branch || "(none)";
-    const oldSub = manifest.sub_branch || "(none)";
+    const oldBranch = this.currentBranch || "(none)";
+    const oldSub = this.currentSubBranch || "(none)";
     const confirmMsg = `Change classification from\nBranch: ${oldBranch}\nSub‑branch: ${oldSub}\nto\nBranch: ${branch}\nSub‑branch: ${subBranch} ?\n\nThis will affect the entire vault.`;
     if (!confirm(confirmMsg)) return false;
 
-    manifest.branch = branch;
-    manifest.sub_branch = subBranch;
-    if (!manifest.branch_author) {
-      const currentPubKey = await this.getPublicKey();
-      if (currentPubKey) manifest.branch_author = currentPubKey;
+    try {
+      const args = ["--db", this.dbPath, "--set-branch", "--branch", branch];
+      if (subBranch) args.push("--sub-branch", subBranch);
+      await execFilePromise(this.binaryPath, args);
+      this.currentBranch = branch;
+      this.currentSubBranch = subBranch;
+      new Notice("✅ Branch classification updated.");
+      return true;
+    } catch (err: any) {
+      new Notice(`❌ Failed to update branch: ${err.message}`);
+      return false;
     }
-    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
-    this.currentBranch = branch;
-    this.currentSubBranch = subBranch;
-    new Notice("✅ Branch classification updated.");
-    return true;
+  }
+
+  async checkFileStatus(filePath: string): Promise<"signed" | "unsigned" | "modified"> {
+    if (!fs.existsSync(this.binaryPath)) return "unsigned";
+    try {
+      const { stdout } = await execFilePromise(this.binaryPath, [
+        "--db", this.dbPath,
+        "--check-status", filePath
+      ]);
+      const status = stdout.trim();
+      if (status === "signed" || status === "unsigned" || status === "modified") {
+        return status;
+      }
+      return "unsigned";
+    } catch (err) {
+      return "unsigned";
+    }
   }
 
   async updateStatusForActiveFile() {
@@ -343,100 +424,31 @@ For more information, see https://github.com/RED-Collective/red-engine
       return;
     }
 
-    const manifestPath = path.join(this.vaultRoot, "manifest.json");
-    const mapKey = file.path;
-
-    try {
-      const data = await fs.promises.readFile(manifestPath, "utf8");
-      const manifest: Manifest = JSON.parse(data);
-      const entry = manifest.files?.[mapKey];
-      if (!entry) {
+    if (this.statusCheckTimeout) clearTimeout(this.statusCheckTimeout);
+    this.statusCheckTimeout = setTimeout(async () => {
+      const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
+      if (!fullPath) {
         this.showUnsigned();
         return;
       }
-      const content = await this.app.vault.readBinary(file);
-      const hash = createHash("sha256").update(Buffer.from(content)).digest("hex");
-      if (hash === entry.file_hash) {
-        this.statusBarItem.setText("✓ Signed");
-        this.statusBarItem.style.color = "var(--color-green)";
+      const status = await this.checkFileStatus(fullPath);
+      if (status === "signed") {
+        this.statusBarItem?.setText("✓ Signed");
+        if (this.statusBarItem) this.statusBarItem.style.color = "var(--color-green)";
+      } else if (status === "modified") {
+        this.statusBarItem?.setText("⚠ Modified");
+        if (this.statusBarItem) this.statusBarItem.style.color = "var(--color-orange)";
       } else {
         this.showUnsigned();
       }
-    } catch (err: any) {
-      if (err.code !== "ENOENT") {
-        console.error("Status check error:", err);
-      }
-      this.showUnsigned();
-    }
+    }, 100);
   }
 
   private showUnsigned() {
     if (!this.statusBarItem) return;
     this.statusBarItem.setText("Unsigned");
-    this.statusBarItem.style.color = "var(--text-muted)";
-  }
-
-  async signFile(file: TFile) {
-    if (!fs.existsSync(this.binaryPath)) {
-      new Notice(`❌ Signer binary missing at ${this.binaryPath}`);
-      return;
-    }
-    const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
-    if (!fullPath) {
-      new Notice("❌ Cannot get file path.");
-      return;
-    }
-    const manifestPath = path.join(this.vaultRoot, "manifest.json");
-    console.log(`Using manifest: ${manifestPath}`);
-    new Notice(`🔏 Signing ${file.name}...`);
-
-    try {
-      const { stdout, stderr } = await execFilePromise(this.binaryPath, [
-        `--manifest=${manifestPath}`,
-        fullPath,
-      ]);
-      if (stderr) console.warn(stderr);
-      console.log(stdout);
-      new Notice(`✅ Signed: ${file.name}`);
-      await this.showPublicKeyIfNew();
-      await this.updateStatusForActiveFile();
-    } catch (error: any) {
-      const errorMsg = error.message + (error.stderr || "");
-      if (errorMsg.includes("--init") || errorMsg.includes("no manifest.json")) {
-        new Notice(`📄 Creating manifest at ${manifestPath}...`);
-        const args = ["--init", `--manifest=${manifestPath}`];
-        if (this.currentBranch) args.push(`--branch=${this.currentBranch}`);
-        if (this.currentSubBranch) args.push(`--sub-branch=${this.currentSubBranch}`);
-        args.push(fullPath);
-        try {
-          const { stdout, stderr } = await execFilePromise(this.binaryPath, args);
-          if (stderr) console.warn(stderr);
-          console.log(stdout);
-          new Notice(`✅ Signed after manifest init: ${file.name}`);
-          await this.showPublicKeyIfNew();
-          await this.updateStatusForActiveFile();
-        } catch (retryError: any) {
-          new Notice(`❌ Still failed: ${retryError.message}`);
-          console.error(retryError);
-        }
-      } else {
-        new Notice(`❌ Signing failed: ${error.message}`);
-        console.error(error);
-      }
-    }
-  }
-
-  private async initManifest(manifestPath: string) {
-    const args = ["--init", `--manifest=${manifestPath}`];
-    if (this.currentBranch) args.push(`--branch=${this.currentBranch}`);
-    if (this.currentSubBranch) args.push(`--sub-branch=${this.currentSubBranch}`);
-    try {
-      const { stderr } = await execFilePromise(this.binaryPath, args);
-      if (stderr) console.warn(stderr);
-      new Notice(`✅ Manifest created at ${manifestPath}`);
-    } catch (err: any) {
-      new Notice(`❌ Failed to create manifest: ${err.message}`);
-      console.error(err);
+    if (this.statusBarItem) {
+      this.statusBarItem.style.color = "var(--text-muted)";
     }
   }
 
@@ -448,6 +460,45 @@ For more information, see https://github.com/RED-Collective/red-engine
         new Notice(`🔑 Your public key:\n${pubKey}\nAdd this to TrustedMaintainers on server.`, 10000);
         fs.writeFileSync(flagPath, pubKey);
       }
+    }
+  }
+
+  async signFile(file: TFile) {
+    // Enforce branch existence before signing
+    if (!this.currentBranch) {
+      new Notice("⚠️ No branch set. Please select a branch and sub-branch before signing.");
+      const activeFile = this.app.workspace.getActiveFile();
+      if (activeFile && activeFile.extension === "md") {
+        new SignModal(this.app, this, activeFile).open();
+      } else {
+        new Notice("❌ No markdown file active. Open a note and try again.");
+      }
+      return;
+    }
+
+    if (!fs.existsSync(this.binaryPath)) {
+      new Notice(`❌ Signer binary missing at ${this.binaryPath}`);
+      return;
+    }
+    const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
+    if (!fullPath) {
+      new Notice("❌ Cannot get file path.");
+      return;
+    }
+
+    new Notice(`🔏 Signing ${file.name}...`);
+    try {
+      await execFilePromise(this.binaryPath, [
+        "--db", this.dbPath,
+        fullPath
+      ]);
+      new Notice(`✅ Signed: ${file.name}`);
+      await this.loadBranchFromDb();
+      await this.updateStatusForActiveFile();
+      await this.showPublicKeyIfNew();
+    } catch (error: any) {
+      new Notice(`❌ Signing failed: ${error.message}`);
+      console.error(error);
     }
   }
 
