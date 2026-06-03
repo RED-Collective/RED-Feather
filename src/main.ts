@@ -18,13 +18,13 @@ const subBranchOptions: Record<string, string[]> = {
 
 // --- Modal for branch selection and signing ---
 class SignModal extends Modal {
-  private plugin: RedSignerPlugin;
+  private plugin: RedFeatherPlugin;
   private file: TFile | null;
   private publicKey: string | null = null;
   private isAuthor: boolean = false;
   private hasBranch: boolean = false;
 
-  constructor(app: App, plugin: RedSignerPlugin, file: TFile | null) {
+  constructor(app: App, plugin: RedFeatherPlugin, file: TFile | null) {
     super(app);
     this.plugin = plugin;
     this.file = file;
@@ -37,7 +37,7 @@ class SignModal extends Modal {
 
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Red Signer" });
+    contentEl.createEl("h2", { text: "RED-Feather" });
 
     if (!this.file) {
       contentEl.createEl("p", { text: "No markdown file is currently active." });
@@ -46,7 +46,7 @@ class SignModal extends Modal {
 
     contentEl.createEl("h3", { text: `Current file: ${this.file.name}` });
     contentEl.createEl("h4", { text: "Your Public Key:" });
-    const keyContainer = contentEl.createDiv({ cls: "red-signer-key-container" });
+    const keyContainer = contentEl.createDiv({ cls: "red-feather-key-container" });
 
     if (this.publicKey) {
       const keyText = keyContainer.createEl("code", { text: this.publicKey });
@@ -79,10 +79,10 @@ class SignModal extends Modal {
     // Sub‑branch dropdown
     contentEl.createEl("h4", { text: "Sub‑Branch" });
     const subBranchSelect = contentEl.createEl("select");
+
     const updateSubBranchOptions = () => {
       const selectedBranch = branchSelect.value;
       subBranchSelect.empty();
-      // Placeholder for sub-branch
       const subPlaceholder = subBranchSelect.createEl("option", { text: "-- Select a sub-branch --", value: "" });
       subPlaceholder.disabled = true;
       if (!selectedBranch) {
@@ -94,24 +94,23 @@ class SignModal extends Modal {
         const option = subBranchSelect.createEl("option", { text: opt, value: opt });
         if (this.plugin.currentSubBranch === opt && this.hasBranch) option.selected = true;
       }
-      // If no branch exists, force user to pick explicitly: leave placeholder selected
       if (!this.hasBranch && subBranchSelect.options.length > 1) {
         (subBranchSelect.options[0] as HTMLOptionElement).selected = true;
       }
     };
 
     // Function to validate and enable/disable sign button
-    const validateAndEnable = () => {
-      const branchValid = branchSelect.value && branchSelect.value !== "";
-      const subValid = subBranchSelect.value && subBranchSelect.value !== "";
-      signBtn.disabled = !(branchValid && subValid);
-    };
+    // Will be defined after button exists, but we'll declare it as a let variable
+    let validateAndEnable: () => void;
 
+    // Event listeners
     branchSelect.addEventListener("change", () => {
       updateSubBranchOptions();
-      validateAndEnable();
+      if (validateAndEnable) validateAndEnable();
     });
-    subBranchSelect.addEventListener("change", validateAndEnable);
+    subBranchSelect.addEventListener("change", () => {
+      if (validateAndEnable) validateAndEnable();
+    });
 
     updateSubBranchOptions();
 
@@ -128,14 +127,26 @@ class SignModal extends Modal {
     }
 
     if (!this.isAuthor && this.hasBranch) {
-      contentEl.createEl("p", { text: "🔒 Classification locked by original author.", cls: "red-signer-lock" });
+      contentEl.createEl("p", { text: "🔒 Classification locked by original author.", cls: "red-feather-lock" });
     } else if (!this.hasBranch) {
-      contentEl.createEl("p", { text: "📚 No branch set yet. You must select a branch and sub-branch before signing.", cls: "red-signer-info" });
+      contentEl.createEl("p", { text: "📚 No branch set yet. You must select a branch and sub-branch before signing.", cls: "red-feather-info" });
     }
 
+    // Create the button first
     const signBtn = contentEl.createEl("button", { text: "✍️ Sign this note", cls: "mod-cta" });
     signBtn.style.marginTop = "1em";
-    signBtn.disabled = true; // initially disabled
+    signBtn.disabled = true; // initial disabled
+
+    // Now define validateAndEnable using the existing button
+    validateAndEnable = () => {
+      const branchValid = branchSelect.value && branchSelect.value !== "";
+      const subValid = subBranchSelect.value && subBranchSelect.value !== "";
+      signBtn.disabled = !(branchValid && subValid);
+    };
+
+    // Enable/disable button based on current selection
+    validateAndEnable();
+
     signBtn.onclick = async () => {
       signBtn.disabled = true;
       signBtn.setText("Signing...");
@@ -143,7 +154,6 @@ class SignModal extends Modal {
       const newBranch = branchSelect.value;
       const newSubBranch = subBranchSelect.value;
 
-      // If no branch exists, initialise the database with chosen branch
       if (!this.hasBranch) {
         await this.plugin.initDatabase(newBranch, newSubBranch);
       } else if (this.isAuthor && (newBranch !== currentBranch || newSubBranch !== this.plugin.currentSubBranch)) {
@@ -153,6 +163,16 @@ class SignModal extends Modal {
       await this.plugin.signFile(this.file!);
       this.close();
     };
+
+    // Attribution required by NOTICE (AGPL-3.0 §7(b)) — do not remove.
+    const attribution = contentEl.createEl("p", { cls: "red-feather-attribution" });
+    attribution.appendText("Powered by ");
+    attribution.createEl("a", {
+      text: "RED Collective",
+      href: "https://github.com/RED-Collective",
+      attr: { target: "_blank", rel: "noopener" },
+    });
+    attribution.appendText(".");
 
     const closeBtn = contentEl.createEl("button", { text: "Close" });
     closeBtn.style.marginLeft = "0.5em";
@@ -166,7 +186,7 @@ class SignModal extends Modal {
 }
 
 // --- Main Plugin Class (Database only) ---
-export default class RedSignerPlugin extends Plugin {
+export default class RedFeatherPlugin extends Plugin {
   private binaryPath: string = "";
   private pluginDir: string = "";
   private vaultRoot: string = "";
@@ -182,32 +202,32 @@ export default class RedSignerPlugin extends Plugin {
     this.vaultRoot = adapter.getBasePath ? adapter.getBasePath() : adapter.basePath || "";
 
     if (!this.vaultRoot) {
-      new Notice("❌ Red Signer only works on desktop Obsidian with a local filesystem.");
+      new Notice("❌ RED-Feather only works on desktop Obsidian with a local filesystem.");
       return;
     }
-    console.log("[Red Signer] Vault root detected:", this.vaultRoot);
+    console.log("[RED-Feather] Vault root detected:", this.vaultRoot);
 
     // 2. Resolve absolute plugin directory (ensuring absolute path for fs operations)
     const manifestDir = (this.manifest as any).dir;
     this.pluginDir = path.join(this.vaultRoot, manifestDir);
-    console.log("[Red Signer] Plugin directory resolved to:", this.pluginDir);
+    console.log("[RED-Feather] Plugin directory resolved to:", this.pluginDir);
 
-    // 3. Set database path (Vault Root -> .red-signer folder -> signer.db)
-    this.dbPath = path.join(this.vaultRoot, ".red-signer", "signer.db");
+    // 3. Set database path (Vault Root -> .red-feather folder -> signer.db)
+    this.dbPath = path.join(this.vaultRoot, ".red-feather", "signer.db");
 
     let binaryName: string;
     switch (process.platform) {
       case "win32":
-        binaryName = "signer-windows-x64.exe";
+        binaryName = "red-feather-windows-x64.exe";
         break;
       case "darwin":
-        binaryName = process.arch === "arm64" ? "signer-macos-arm64" : "signer-macos-x64";
+        binaryName = process.arch === "arm64" ? "red-feather-macos-arm64" : "red-feather-macos-x64";
         break;
       case "linux":
-        binaryName = (process.arch as string) === "arm64" || (process.arch as string) === "aarch64" ? "signer-linux-arm64" : "signer-linux-x64";
+        binaryName = (process.arch as string) === "arm64" || (process.arch as string) === "aarch64" ? "red-feather-linux-arm64" : "red-feather-linux-x64";
         break;
       default:
-        binaryName = "signer";
+        binaryName = "red-feather";
     }
     this.binaryPath = path.join(this.pluginDir, binaryName);
 
@@ -236,7 +256,7 @@ export default class RedSignerPlugin extends Plugin {
 
     // Status bar
     this.statusBarItem = this.addStatusBarItem();
-    this.statusBarItem.addClass("red-signer-status");
+    this.statusBarItem.addClass("red-feather-status");
     this.updateStatusForActiveFile();
 
     // Event listeners
@@ -249,7 +269,7 @@ export default class RedSignerPlugin extends Plugin {
     }));
 
     // Ribbon icon
-    this.addRibbonIcon("signature", "Red Signer: Sign current note", async () => {
+    this.addRibbonIcon("feather", "RED-Feather: Sign current note", async () => {
       const file = this.app.workspace.getActiveFile();
       if (file && file.extension === "md") {
         new SignModal(this.app, this, file).open();
@@ -292,15 +312,15 @@ export default class RedSignerPlugin extends Plugin {
 
   private async ensureReadme() {
     const homedir = require('os').homedir();
-    const redNetworkDir = path.join(homedir, ".red-network");
-    const readmePath = path.join(redNetworkDir, "README.md");
+    const redFeatherDir = path.join(homedir, ".red-feather");
+    const readmePath = path.join(redFeatherDir, "README.md");
     if (!fs.existsSync(readmePath)) {
-      if (!fs.existsSync(redNetworkDir)) {
-        fs.mkdirSync(redNetworkDir, { recursive: true, mode: 0o700 });
+      if (!fs.existsSync(redFeatherDir)) {
+        fs.mkdirSync(redFeatherDir, { recursive: true, mode: 0o700 });
       }
-      const content = `# RED Network Identity
-  
-This directory contains your private Ed25519 key (maintainer.key) used by the Red Signer Obsidian plugin.
+      const content = `# RED-Feather Identity
+
+This directory contains your private Ed25519 key (maintainer.key) used by the RED-Feather Obsidian plugin.
 
 **⚠️ WARNING: Do not delete this file unless you intend to lose your contributor identity.**
 
@@ -310,10 +330,10 @@ This directory contains your private Ed25519 key (maintainer.key) used by the Re
 
 To back up your identity, copy the file maintainer.key to a secure location (e.g., an encrypted USB drive).
 
-For more information, see https://github.com/RED-Collective/red-engine
+For more information, see https://github.com/RED-Collective/RED-Engine
         `;
       fs.writeFileSync(readmePath, content, { mode: 0o644 });
-      console.log("Created README in ~/.red-network");
+      console.log("Created README in ~/.red-feather");
     }
   }
 

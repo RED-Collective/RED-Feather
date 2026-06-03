@@ -1,10 +1,10 @@
 {
-  "id": "red-signer",
-  "name": "Red Signer",
+  "id": "red-feather",
+  "name": "RED-Feather",
   "version": "2.0.0",
   "minAppVersion": "0.15.0",
   "description": "Sign markdown notes with ed25519 and maintain a verifiable manifest.",
-  "author": "Standard Codebase",
-  "authorUrl": "https://github.com/StandardCodebase",
+  "author": "RED Collective",
+  "authorUrl": "https://github.com/RED-Collective",
   "isDesktopOnly": true
 }

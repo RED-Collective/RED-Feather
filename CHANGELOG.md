@@ -1,8 +1,16 @@
 # Changelog
 
-All notable changes to the **Obsidian Red Signer** plugin will be documented in this file.
+All notable changes to the **Obsidian RED-Feather** plugin (formerly Obsidian Red Signer) will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.1.0] – 2026-06-03
+
+### Changed
+- **Rebrand to RED-Feather** – the plugin and its bundled Go backend were renamed from **Red Signer** to **RED-Feather**.
+- **Executable names** – the produced binaries are now `red-feather-linux-x64`, `red-feather-linux-arm64`, `red-feather-macos-x64`, `red-feather-macos-arm64`, and `red-feather-windows-x64.exe` (previously `signer-*`). The plugin's startup binary detection was updated to match.
+- **On-disk paths** – the identity directory moved from `~/.red-signer/` to `~/.red-feather/`, and the per-vault database to `<vault>/.red-feather/signer.db`. Existing installs must move their old `~/.red-signer/` folder to keep their maintainer identity.
+- **Internals** – the `--version` banner now reads `red-feather`, the Go source directory is `cmd/red-feather`, and the install scripts are `install-red-feather.{sh,ps1}`. The AGPL-3.0 §7(b) "Powered by RED Collective" attribution is preserved unchanged.
 
 ## [2.0.0] – 2026-05-31
 

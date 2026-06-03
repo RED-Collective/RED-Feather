@@ -2,12 +2,12 @@
 set -e
 
 REPO_ROOT="/home/coder/Testing/obsidian-red-signer-main"
-GO_PROJECT_DIR="$REPO_ROOT/cmd/red-signer"
-PLUGIN_DIR="/home/coder/Library/API/.obsidian/plugins/obsidian-red-signer"  # changed to match plugin ID
+GO_PROJECT_DIR="$REPO_ROOT/cmd/red-feather"
+PLUGIN_DIR="/home/coder/Library/API/.obsidian/plugins/red-feather"  # changed to match plugin ID
 
 GOOS=linux
 GOARCH=amd64
-BINARY_NAME="signer-linux-x64"
+BINARY_NAME="red-feather-linux-x64"
 
 echo "🔨 Building Go binary for $GOOS/$GOARCH..."
 cd "$GO_PROJECT_DIR"

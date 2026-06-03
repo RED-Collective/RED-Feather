@@ -659,3 +659,13 @@ specific requirements.
 if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
+
+---
+
+### ADDITIONAL TERMS 
+
+Pursuant to Section 7(b) of the GNU Affero General Public License, version 3, the following additional terms apply to the Program:
+
+1. **Mandatory Attribution**: All interactive user interfaces of any work based on the Program must prominently display the "Appropriate Legal Notices" (as defined in Section 0). These notices must include the attribution "Powered by RED Collective" and a visible link to the original project repository.
+
+2. **Visual Integrity**: The "Powered by RED Collective" notice must remain visible and unobstructed in the primary user interface (such as a footer, "About" screen, or main menu) and may not be removed or significantly altered in any derivative works or downstream forks.

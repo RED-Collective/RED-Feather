@@ -1,6 +1,6 @@
-# Red Signer Plugin – Complete Architecture Map
+# RED-Feather Plugin – Complete Architecture Map
 
-This document provides a detailed architectural map of the **Red Signer** Obsidian plugin, covering all components, their interactions, data flows, and external dependencies.
+This document provides a detailed architectural map of the **RED-Feather** Obsidian plugin, covering all components, their interactions, data flows, and external dependencies.
 
 ---
 
@@ -12,19 +12,19 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    RedSignerPlugin (TypeScript)                      │   │
+│  │                    RedFeatherPlugin (TypeScript)                      │   │
 │  │  - UI: Ribbon icon, command palette, editor context menu, modal     │   │
 │  │  - Status bar indicator (signed / unsigned)                         │   │
 │  │  - Event listeners (file modification, active leaf change)          │   │
 │  │  - Binary management (path, permissions, execution)                 │   │
-│  │  - Database path resolution (.red-signer.db in vault root)          │   │
+│  │  - Database path resolution (.red-feather.db in vault root)          │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                        │
 │                                    │ child_process.execFile                │
 │                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                 Go Binary (signer-<platform>-<arch>)                 │   │
-│  │  - Ed25519 key generation / loading (keys in ~/.red-network/)       │   │
+│  │              Go Binary (red-feather-<platform>-<arch>)               │   │
+│  │  - Ed25519 key generation / loading (keys in ~/.red-feather/)       │   │
 │  │  - SQLite database operations (create tables, CRUD)                 │   │
 │  │  - File hashing (SHA‑256) and signing                               │   │
 │  │  - Branch / sub‑branch metadata management                          │   │
@@ -33,14 +33,14 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
 │                                    │                                        │
 │                                    ▼                                        │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │              SQLite Database (.red-signer.db in vault root)          │   │
+│  │              SQLite Database (.red-feather.db in vault root)          │   │
 │  │  Tables: metadata, files, schema_version                            │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │             File System (outside vault)                              │   │
-│  │  - ~/.red-network/maintainer.key (private Ed25519 key)              │   │
-│  │  - ~/.red-network/README.md (warning notice)                        │   │
+│  │  - ~/.red-feather/maintainer.key (private Ed25519 key)              │   │
+│  │  - ~/.red-feather/README.md (warning notice)                        │   │
 │  │  - <pluginDir>/.pubkey_shown (flag to avoid repeated public key     │   │
 │  │    notification)                                                    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
@@ -57,23 +57,23 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
    `this.app.vault.adapter.getBasePath()` – only works on desktop Obsidian (fails otherwise).
 
 2. **Set database path**  
-   `path.join(vaultRoot, ".red-signer.db")`
+   `path.join(vaultRoot, ".red-feather.db")`
 
 3. **Locate plugin directory**  
-   - Try `app.plugins.getPlugin("red-signer")?.manifest?.dir`
-   - Fallback: `<vaultRoot>/.obsidian/plugins/red-signer`
+   - Try `app.plugins.getPlugin("red-feather")?.manifest?.dir`
+   - Fallback: `<vaultRoot>/.obsidian/plugins/red-feather`
 
 4. **Select binary name** based on `process.platform` / `process.arch`:
-   - Windows: `signer-windows-x64.exe`
-   - macOS (arm64): `signer-macos-arm64`
-   - macOS (x64): `signer-macos-x64`
-   - Linux: `signer-linux-x64`
-   - Fallback: `signer`
+   - Windows: `red-feather-windows-x64.exe`
+   - macOS (arm64): `red-feather-macos-arm64`
+   - macOS (x64): `red-feather-macos-x64`
+   - Linux: `red-feather-linux-x64`
+   - Fallback: `red-feather`
 
 5. **Ensure binary executable** (non‑Windows only)  
    - Check `fs.statSync` for mode bits, `fs.chmodSync(0o755)` if needed.
 
-6. **Create warning README** in `~/.red-network` (`ensureReadme()`)
+6. **Create warning README** in `~/.red-feather` (`ensureReadme()`)
 
 7. **Load current branch info** from database (`loadBranchFromDb()`)  
    - Calls binary with `--db <dbPath> --get-branch`  
@@ -85,7 +85,7 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
    - `vault.on("modify")` – re‑check status when active file saved  
    - `workspace.on("active-leaf-change")` – update status on tab switch
 
-10. **Add ribbon icon** (ID `signature`) with tooltip *Red Signer: Sign current note*  
+10. **Add ribbon icon** (ID `signature`) with tooltip *RED-Feather: Sign current note*  
     Opens `SignModal` for current markdown file.
 
 11. **Add editor context menu item**  
@@ -130,8 +130,8 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
 
 ### 4.1 Storage Location
 
-- `~/.red-network/maintainer.key` – **private** Ed25519 key (permissions `0600`).
-- `~/.red-network/maintainer.pub` – public key in hex (optional, created for convenience).
+- `~/.red-feather/maintainer.key` – **private** Ed25519 key (permissions `0600`).
+- `~/.red-feather/maintainer.pub` – public key in hex (optional, created for convenience).
 
 ### 4.2 Key Generation / Loading (`ensureKeys()`)
 
@@ -146,7 +146,7 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
 
 ## 5. SQLite Database Schema
 
-**File**: `.red-signer.db` (in vault root)
+**File**: `.red-feather.db` (in vault root)
 
 ### 5.1 Table `metadata`
 | Column | Type    | Description                          |
@@ -284,7 +284,7 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
 │  (TypeScript)       │
 └─────────┬───────────┘
           │ child_process.execFile
-          │   args: [ "--db", ".red-signer.db", fullPath ]
+          │   args: [ "--db", ".red-feather.db", fullPath ]
           ▼
 ┌─────────────────────────────────────────┐
 │  Go binary (default mode)               │
@@ -311,21 +311,21 @@ This document provides a detailed architectural map of the **Red Signer** Obsidi
 
 ```
 Vault Root/
-├── .red-signer.db          (SQLite database)
+├── .red-feather.db          (SQLite database)
 ├── .obsidian/
 │   └── plugins/
-│       └── red-signer/
+│       └── red-feather/
 │           ├── main.js
 │           ├── manifest.json (not shown, but required)
-│           ├── signer-windows-x64.exe
-│           ├── signer-macos-arm64
-│           ├── signer-macos-x64
-│           ├── signer-linux-x64
+│           ├── red-feather-windows-x64.exe
+│           ├── red-feather-macos-arm64
+│           ├── red-feather-macos-x64
+│           ├── red-feather-linux-x64
 │           └── .pubkey_shown   (flag file)
 └── (any markdown files)
 
 User Home (~)/
-└── .red-network/
+└── .red-feather/
     ├── maintainer.key       (private key, 0600)
     ├── maintainer.pub       (public key hex, 0644)
     └── README.md            (warning notice)
@@ -337,13 +337,13 @@ User Home (~)/
 
 | Component A            | Action                                        | Component B            |
 |------------------------|-----------------------------------------------|------------------------|
-| Obsidian user         | Click ribbon icon / run command               | `RedSignerPlugin`      |
-| `RedSignerPlugin`     | Spawn `execFile` with `--print-pubkey`        | Go binary              |
-| `RedSignerPlugin`     | Spawn `execFile` with `--get-branch`          | Go binary + SQLite     |
-| `RedSignerPlugin`     | Spawn `execFile` with `--set-branch ...`      | Go binary + SQLite     |
-| `RedSignerPlugin`     | Spawn `execFile` with file path               | Go binary + SQLite + FS|
-| Go binary             | Read / write `~/.red-network/maintainer.key`  | File system            |
-| Go binary             | Read/write `.red-signer.db`                   | SQLite engine          |
+| Obsidian user         | Click ribbon icon / run command               | `RedFeatherPlugin`      |
+| `RedFeatherPlugin`     | Spawn `execFile` with `--print-pubkey`        | Go binary              |
+| `RedFeatherPlugin`     | Spawn `execFile` with `--get-branch`          | Go binary + SQLite     |
+| `RedFeatherPlugin`     | Spawn `execFile` with `--set-branch ...`      | Go binary + SQLite     |
+| `RedFeatherPlugin`     | Spawn `execFile` with file path               | Go binary + SQLite + FS|
+| Go binary             | Read / write `~/.red-feather/maintainer.key`  | File system            |
+| Go binary             | Read/write `.red-feather.db`                   | SQLite engine          |
 | Go binary             | Read markdown file                            | File system            |
 
 ---

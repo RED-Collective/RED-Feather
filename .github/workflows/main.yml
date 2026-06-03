@@ -39,15 +39,15 @@ jobs:
 
       - name: Build Go binaries
         run: |
-          cd cmd/red-signer
+          cd cmd/red-feather
           # Linux (amd64)
-          GOOS=linux GOARCH=amd64 go build -o ../../signer-linux-x64 main.go
+          GOOS=linux GOARCH=amd64 go build -o ../../red-feather-linux-x64 main.go
           # macOS (Intel)
-          GOOS=darwin GOARCH=amd64 go build -o ../../signer-macos-x64 main.go
+          GOOS=darwin GOARCH=amd64 go build -o ../../red-feather-macos-x64 main.go
           # macOS (Apple Silicon)
-          GOOS=darwin GOARCH=arm64 go build -o ../../signer-macos-arm64 main.go
+          GOOS=darwin GOARCH=arm64 go build -o ../../red-feather-macos-arm64 main.go
           # Windows (amd64)
-          GOOS=windows GOARCH=amd64 go build -o ../../signer-windows-x64.exe main.go
+          GOOS=windows GOARCH=amd64 go build -o ../../red-feather-windows-x64.exe main.go
           cd ../..
 
       - name: Remove unnecessary files from release context
@@ -63,10 +63,10 @@ jobs:
           files: |
             main.js
             manifest.json
-            signer-linux-x64
-            signer-macos-x64
-            signer-macos-arm64
-            signer-windows-x64.exe
+            red-feather-linux-x64
+            red-feather-macos-x64
+            red-feather-macos-arm64
+            red-feather-windows-x64.exe
             README.md
             CHANGELOG.md
             LICENSE.md

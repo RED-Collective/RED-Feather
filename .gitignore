@@ -2,6 +2,7 @@
 .pubkey_shown
 
 .keys/
+.backup/
 
 node_modules/
 package-lock.json
