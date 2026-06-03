@@ -1,7 +1,7 @@
 {
   "id": "red-feather",
   "name": "RED-Feather",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "minAppVersion": "0.15.0",
   "description": "Sign markdown notes with ed25519 and maintain a verifiable manifest.",
   "author": "RED Collective",
