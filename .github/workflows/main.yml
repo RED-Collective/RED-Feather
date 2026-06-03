@@ -23,7 +23,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version-file: cmd/red-feather/go.mod
 
       - name: Install TypeScript dependencies
         working-directory: src
@@ -42,6 +42,8 @@ jobs:
           cd cmd/red-feather
           # Linux (amd64)
           GOOS=linux GOARCH=amd64 go build -o ../../red-feather-linux-x64 main.go
+          # Linux (arm64)
+          GOOS=linux GOARCH=arm64 go build -o ../../red-feather-linux-arm64 main.go
           # macOS (Intel)
           GOOS=darwin GOARCH=amd64 go build -o ../../red-feather-macos-x64 main.go
           # macOS (Apple Silicon)
@@ -55,7 +57,6 @@ jobs:
           
           rm -rf src cmd scripts .gitlab node_modules .pubkey_shown .cache
           rm -f *.sh *.ps1 *.md~ *.js.map *.tsbuildinfo
-          rm -f README.md CHANGELOG.md
 
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
@@ -64,6 +65,7 @@ jobs:
             main.js
             manifest.json
             red-feather-linux-x64
+            red-feather-linux-arm64
             red-feather-macos-x64
             red-feather-macos-arm64
             red-feather-windows-x64.exe
