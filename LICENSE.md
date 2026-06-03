@@ -1,3 +1,8 @@
+This software is licensed under the GNU Affero General Public License v3,
+with Additional Terms as described in ADDITIONAL_TERMS.md.
+
+---
+
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 

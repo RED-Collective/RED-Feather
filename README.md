@@ -183,7 +183,7 @@ modified version, or derivative must preserve the credit
 
 in the notices the software displays to its users (the plugin's signing modal,
 the bundled `red-feather --version` output, and this README). The exact, binding
-terms are in [`NOTICE.md`](./NOTICE.md). This credit **may not be removed**.
+terms are in [`ADDITIONAL_TERMS.md`](./ADDITIONAL_TERMS.md).
 
 © 2026 RED Collective · <https://github.com/RED-Collective>
 
